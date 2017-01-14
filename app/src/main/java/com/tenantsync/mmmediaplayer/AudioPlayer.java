@@ -1,6 +1,7 @@
 package com.tenantsync.mmmediaplayer;
 
 import android.content.Context;
+import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.AsyncTask;
@@ -29,6 +30,12 @@ public class AudioPlayer extends AppCompatActivity {
     boolean paused;
     TextView timeLeft;
     TextView timePlayed;
+    String id;
+    String name;
+    String description;
+    String filename;
+    String fileType;
+    String downloaded;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,19 +48,35 @@ public class AudioPlayer extends AppCompatActivity {
         playing = false;
         paused = false;
 
+        String url = "http://6aa3b6b9.ngrok.io";
+
+        Intent intent = getIntent();
+        id = intent.getStringExtra("id");
+        name = intent.getStringExtra("name");
+        description = intent.getStringExtra("description");
+        filename = intent.getStringExtra("filename");
+        fileType = intent.getStringExtra("fileType");
+        downloaded = intent.getStringExtra("downloaded");
+
         //mediaPlayer = MediaPlayer.create(this,R.raw.dogpanting);
 
-        try {
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            mediaPlayer.setDataSource("http://9f36e30e.ngrok.io/audio/dogpanting.mp3");
-            mediaPlayer.prepare();
-            playing = true;
-            mediaPlayer.start();
-        } catch (Exception e) {
-            Log.i("Exception", "Exception creating media player");
+        Log.i("downloaded",downloaded);
+
+        if(downloaded.equals("0")) {
+            try {
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mediaPlayer.setDataSource(url + "/audio/" + filename);
+                mediaPlayer.prepare();
+                playing = true;
+                mediaPlayer.start();
+            } catch (Exception e) {
+                Log.i("Exception", "Exception creating media player");
+            }
         }
 
+        TextView audioDescription = (TextView)findViewById(R.id.textViewAudioDescription);
+        audioDescription.setText(name + ": " + description);
         //////////////////////////////////
         // Start Location Scrub Control //
         //////////////////////////////////
