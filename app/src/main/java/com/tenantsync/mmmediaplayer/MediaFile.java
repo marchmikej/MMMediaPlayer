@@ -12,13 +12,15 @@ public class MediaFile {
     public int fileType;
     public int id;
     public int downloaded;
+    public String imagefile;
 
-    public MediaFile(String name, String description, String filename, int fileType, int id, int downloaded) {
+    public MediaFile(String name, String description, String filename, int fileType, int id, int downloaded, String imagefile) {
         this.name = name;
         this.description = description;
         this.filename = filename;
         this.fileType = fileType;
         this.id = id;
         this.downloaded = downloaded;
+        this.imagefile = imagefile;
     }
 }

@@ -2,17 +2,35 @@ package com.tenantsync.mmmediaplayer;
 
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.AsyncTask;
+import android.support.design.widget.FloatingActionButton;
+import android.support.v4.view.ViewCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.ImageRequest;
+
+import java.io.File;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -36,6 +54,8 @@ public class AudioPlayer extends AppCompatActivity {
     String filename;
     String fileType;
     String downloaded;
+    String imagefile;
+    ImageView imageView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,11 +64,10 @@ public class AudioPlayer extends AppCompatActivity {
 
         timeLeft = (TextView)findViewById(R.id.timeLeft);
         timePlayed = (TextView)findViewById(R.id.timePlayed);
+        imageView = (ImageView)findViewById(R.id.imageViewIcon);
 
         playing = false;
         paused = false;
-
-        String url = "http://6aa3b6b9.ngrok.io";
 
         Intent intent = getIntent();
         id = intent.getStringExtra("id");
@@ -57,21 +76,75 @@ public class AudioPlayer extends AppCompatActivity {
         filename = intent.getStringExtra("filename");
         fileType = intent.getStringExtra("fileType");
         downloaded = intent.getStringExtra("downloaded");
+        imagefile = intent.getStringExtra("imagefile");
 
-        //mediaPlayer = MediaPlayer.create(this,R.raw.dogpanting);
+        SQLiteDatabase myDatabase = this.openOrCreateDatabase("MMMedia", MODE_PRIVATE, null);
+        String query = "SELECT * FROM media WHERE id = " + id;
+        Cursor c = myDatabase.rawQuery(query, null);
+        int startIndex = c.getColumnIndex("startlocation");
+        c.moveToFirst();
+        int startlocation = 0;
+        if(c.getCount()>0) {
+            startlocation = c.getInt(startIndex);
+        }
 
-        Log.i("downloaded",downloaded);
+        // Retrieves an image specified by the URL, displays it in the UI.
+        ImageRequest request = new ImageRequest(Helper.url + "/image/" + imagefile,
+                new Response.Listener<Bitmap>() {
+                    @Override
+                    public void onResponse(Bitmap bitmap) {
+                        imageView.setImageBitmap(bitmap);
+                    }
+                }, 0, 0, null,
+                new Response.ErrorListener() {
+                    public void onErrorResponse(VolleyError error) {
+                        imageView.setImageResource(R.drawable.musicnote);
+                    }
+                });
+        // Access the RequestQueue through your singleton class.
+        MySingleton.getInstance(this).addToRequestQueue(request);
 
-        if(downloaded.equals("0")) {
+        Context context = this;
+        File fileLocation = new File(context.getFilesDir(), filename);
+
+        if(!fileLocation.exists()) {
+            Log.i("Playing", "File being played from web");
             try {
                 mediaPlayer = new MediaPlayer();
                 mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                mediaPlayer.setDataSource(url + "/audio/" + filename);
+                mediaPlayer.setDataSource(Helper.url + "/audio/" + filename);
                 mediaPlayer.prepare();
                 playing = true;
+                mediaPlayer.seekTo(startlocation);
                 mediaPlayer.start();
             } catch (Exception e) {
-                Log.i("Exception", "Exception creating media player");
+                Log.i("Exception", "Exception creating media player from web");
+                CharSequence text = "Error Playing File Over Network";
+                int duration = Toast.LENGTH_SHORT;
+
+                Toast toast = Toast.makeText(context, text, duration);
+                toast.show();
+            }
+        } else  {
+            Log.i("Playing", "File being played from internal storage");
+            try {
+                mediaPlayer = new MediaPlayer();
+                mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+                mediaPlayer.setDataSource(this, Uri.fromFile(fileLocation));
+                mediaPlayer.prepare();
+                playing = true;
+                mediaPlayer.seekTo(startlocation);
+                mediaPlayer.start();
+
+            } catch (Exception e) {
+                Log.i("Exception", "Exception creating media player from internal storage " + filename);
+                e.printStackTrace();
+                Log.i("Exception", "Exception creating media player from web");
+                CharSequence text = "Error Loading Audio File from Internal Storage";
+                int duration = Toast.LENGTH_SHORT;
+
+                Toast toast = Toast.makeText(context, text, duration);
+                toast.show();
             }
         }
 
@@ -114,7 +187,6 @@ public class AudioPlayer extends AppCompatActivity {
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                Log.i("Location Seekbar Value", Integer.toString(progress));
                 if(paused || !playing) {
                     mediaPlayer.seekTo(progress);
                     //updateTimers();
@@ -156,7 +228,6 @@ public class AudioPlayer extends AppCompatActivity {
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                Log.i("Volume Seekbar Value", Integer.toString(progress));
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0);
             }
         });
@@ -166,14 +237,63 @@ public class AudioPlayer extends AppCompatActivity {
         ////////////////////////////////
     }
 
-    public void playAudio(View view) {
-        playing = true;
-        mediaPlayer.start();
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater menuInflater = getMenuInflater();
+        menuInflater.inflate(R.menu.main_menu, menu);
+
+        return super.onCreateOptionsMenu(menu);
     }
 
-    public void pauseAudio(View view) {
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        super.onOptionsItemSelected(item);
+        Intent intent;
+        switch (item.getItemId()) {
+            case R.id.settings:
+                Log.i("Menu Selection", "Settings");
+                intent = new Intent(this, SettingPage.class);
+                startActivity(intent);
+                return true;
+            case R.id.login:
+                Log.i("Menu Selection", "Login");
+                intent = new Intent(this, LoginActivity.class);
+                startActivity(intent);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        SQLiteDatabase myDatabase = this.openOrCreateDatabase("MMMedia", MODE_PRIVATE, null);
+        myDatabase.execSQL("UPDATE media SET " +
+                "startlocation = " + mediaPlayer.getCurrentPosition() +
+                " WHERE id = " + id);
+        myDatabase.close();
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Otherwise defer to system default behavior.
+        super.onBackPressed();
         mediaPlayer.pause();
-        playing = false;
+        finish();
+    }
+
+    public void playPauseAudio(View view) {
+        FloatingActionButton playPauseButton = (FloatingActionButton) findViewById(R.id.fabPlayPause);
+        if(playing == true) {
+            playing = false;
+            mediaPlayer.pause();
+            playPauseButton.setImageResource(R.drawable.ic_play_arrow_white_24dp);
+        } else {
+            playing = true;
+            mediaPlayer.start();
+            playPauseButton.setImageResource(R.drawable.ic_pause_white_24dp);
+        }
     }
 
     public void updateTimers() {
@@ -217,36 +337,6 @@ public class AudioPlayer extends AppCompatActivity {
             timePlayedSeconds = "0" + timePlayedSeconds;
         }
         timePlayed.setText(timePlayedHours + ":" + timePlayedMinutes + ":" + timePlayedSeconds);
-    }
-
-    public class DownloadTask extends AsyncTask<String, Void, String> {
-        @Override
-        protected String doInBackground(String... urls) {
-            String result = "";
-            URL url;
-            HttpURLConnection urlConnection = null;
-
-            try {
-                url = new URL(urls[0]);
-                urlConnection = (HttpURLConnection)url.openConnection();
-                InputStream in = urlConnection.getInputStream();
-                InputStreamReader reader = new InputStreamReader(in);
-                int data = reader.read();
-                while(data!=1) {
-                    char current = (char) data;
-                    result+= current;
-                    data = reader.read();
-                }
-                Log.i("Value2", result);
-                return result;
-            } catch(MalformedURLException e) {
-                e.printStackTrace();
-            } catch(IOException e) {
-                e.printStackTrace();
-            }
-
-            return "Done";
-        }
     }
 }
 
